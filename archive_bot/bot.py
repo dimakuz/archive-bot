@@ -26,6 +26,58 @@ class Config:
         )
 
 
+class Bot:
+    def __init__(self, config):
+        self._config = config
+
+    def run(self):
+        updater = tg.ext.Updater(self._config.token)
+        dispatcher = updater.dispatcher
+        user_filter = telegram.ext.Filters.user()
+        user_filter.add_usernames(self._config.allowed_users)
+
+        dispatcher.add_handler(
+            tg.ext.MessageHandler(
+                user_filter & tg.ext.Filters.document.pdf,
+                self._store_document,
+            )
+        )
+
+        dispatcher.add_handler(
+            tg.ext.MessageHandler(
+                user_filter & tg.ext.Filters.all,
+                self._ignore,
+            ),
+        )
+
+        updater.start_polling()
+        updater.idle()
+
+    def _ignore(self, update: tg.Update, _: tg.ext.CallbackContext) -> None:
+        update.message.reply_text('Ignoring...')
+
+    def _store_document(
+        self,
+        update: tg.Update,
+        _: tg.ext.CallbackContext
+    ) -> None:
+        filename = update.message.document.file_name
+        temp_path = self._temp_path(filename)
+        update.message.document.get_file().download(temp_path)
+
+        final_path = self._final_path(filename)
+        os.rename(temp_path, final_path)
+        update.message.reply_text(
+            f'{filename} stored successfully.'
+        )
+
+    def _temp_path(self, filename):
+        return f'{self._config.dest_dir}/._{filename}'
+
+    def _final_path(self, filename):
+        return f'{self._config.dest_dir}/{filename}'
+
+
 def main() -> None:
     config = Config.from_env()
 
@@ -46,43 +98,8 @@ def main() -> None:
     # Ensure target dir exists
     pathlib.Path(config.dest_dir).mkdir(exist_ok=True)
 
-    updater = tg.ext.Updater(config.token)
-    dispatcher = updater.dispatcher
-
-    user_filter = telegram.ext.Filters.user()
-    user_filter.add_usernames(config.allowed_users)
-
-    def store_document(update: tg.Update, _: tg.ext.CallbackContext) -> None:
-        update.message.document.get_file().download(
-            f'{config.dest_dir}/._{update.message.document.file_name}',
-        )
-        os.rename(
-            f'{config.dest_dir}/._{update.message.document.file_name}',
-            f'{config.dest_dir}/{update.message.document.file_name}'
-        )
-        update.message.reply_text(
-            f'{update.message.document.file_name} stored successfully.'
-        )
-
-    dispatcher.add_handler(
-        tg.ext.MessageHandler(
-            user_filter & tg.ext.Filters.document.pdf,
-            store_document,
-        )
-    )
-
-    def ignore(update: tg.Update, _: tg.ext.CallbackContext) -> None:
-        update.message.reply_text('Ignoring...')
-
-    dispatcher.add_handler(
-        tg.ext.MessageHandler(
-            user_filter & tg.ext.Filters.all,
-            ignore,
-        ),
-    )
-
-    updater.start_polling()
-    updater.idle()
+    bot = Bot(config)
+    bot.run()
 
 
 if __name__ == '__main__':
