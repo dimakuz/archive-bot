@@ -22,7 +22,7 @@ jobs:
     - name: Publish Docker image
       uses: docker/build-push-action@v2
       with:
-        platforms: linux/amd64
+        platforms: linux/amd64,linux/arm64
         push: true
         tags: |
           ghcr.io/dimakuz/archive-bot:${{ steps.version.outputs.version }}
