@@ -1,0 +1,13 @@
+name: Docker Image Build
+
+on:
+  push:
+    branches: [ $default-branch ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag archive-bot:$(date +%Y%m%d%H%M%S)
